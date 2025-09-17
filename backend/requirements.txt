@@ -5,10 +5,11 @@ azure-ai-projects
 azure-ai-agents
 azure-storage-blob
 azure-cosmos
+azure-search-documents
 
 # AI + Azure
 openai
-azure-ai-ml
+# azure-ai-ml removed (not used in code, was pulling large dependency graph causing build timeouts)
 azure-core
 
 # MCP Server Framework

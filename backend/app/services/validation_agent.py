@@ -566,6 +566,43 @@ def auto_fix_common_errors(code: str) -> str:
         'ContainerRegistriess': 'ContainerRegistries', # Fix double s
     }
     
+    # CRITICAL FIX: APIManagement import error (from logs) - Multiple patterns
+    if 'APIManagement' in fixed_code:
+        # Pattern 1: APIManagement in web imports (with other imports)
+        fixed_code = re.sub(
+            r'from diagrams\.azure\.web import([^,\n]*),\s*APIManagement([^,\n]*)',
+            r'from diagrams.azure.web import\1\2',
+            fixed_code
+        )
+        # Pattern 2: APIManagement as sole import from web
+        fixed_code = re.sub(
+            r'from diagrams\.azure\.web import APIManagement\s*\n',
+            r'',
+            fixed_code
+        )
+        # Pattern 3: APIManagement mixed in web imports
+        fixed_code = re.sub(
+            r'from diagrams\.azure\.web import(.*)APIManagement(.*)',
+            lambda m: f'from diagrams.azure.web import{m.group(1)}{m.group(2)}'.replace(', ,', ',').strip(', '),
+            fixed_code
+        )
+        # Add correct import at the top of imports if APIManagement is used
+        if 'APIManagement(' in fixed_code:
+            import_lines = []
+            other_lines = []
+            for line in fixed_code.split('\n'):
+                if line.strip().startswith('from diagrams'):
+                    import_lines.append(line)
+                else:
+                    other_lines.append(line)
+            
+            # Add APIManagement import if not already present
+            if 'from diagrams.azure.integration import APIManagement' not in '\n'.join(import_lines):
+                import_lines.append('from diagrams.azure.integration import APIManagement')
+            
+            fixed_code = '\n'.join(import_lines + other_lines)
+            fixes_applied.append("CRITICAL FIX: Moved APIManagement from azure.web to azure.integration")
+    
     for mistake, correct in critical_fixes.items():
         if mistake in fixed_code:
             # Word boundary replacement to avoid partial matches

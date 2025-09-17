@@ -29,5 +29,5 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
-# Start the MCP HTTP wrapper
-CMD ["python", "mcp_http_wrapper.py"]
+# Start the Multi-MCP HTTP wrapper
+CMD ["python", "multi_mcp_server.py"]

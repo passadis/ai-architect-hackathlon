@@ -76,25 +76,50 @@ PROVIDER_SERVICE_MAPPINGS = {
     'azure': {
         # Compute
         'app services': 'diagrams.azure.web.AppServices',
-        'function apps': 'diagrams.azure.web.FunctionApps',
-        'virtual machines': 'diagrams.azure.compute.VirtualMachines',
-        'kubernetes services': 'diagrams.azure.compute.KubernetesServices',
+        'function apps': 'diagrams.azure.compute.FunctionApps',
+        'vm': 'diagrams.azure.compute.VM',
+        'virtual machines': 'diagrams.azure.compute.VM',
+        'aks': 'diagrams.azure.compute.AKS',
+        'kubernetes services': 'diagrams.azure.compute.AKS',
+        'container instances': 'diagrams.azure.compute.ContainerInstances',
+        'vmss': 'diagrams.azure.compute.VMSS',
         
         # Database
-        'sql database': 'diagrams.azure.database.SQLDatabases',
+        'sql database': 'diagrams.azure.database.SQL',
+        'sql databases': 'diagrams.azure.database.SQLDatabases',
         'cosmos db': 'diagrams.azure.database.CosmosDb',
-        'mysql': 'diagrams.azure.database.DatabaseForMySQLServers',
+        'mysql': 'diagrams.azure.database.DatabaseForMysqlServers',
+        'postgresql': 'diagrams.azure.database.DatabaseForPostgresqlServers',
+        'cache for redis': 'diagrams.azure.database.CacheForRedis',
         
         # Storage
         'storage accounts': 'diagrams.azure.storage.StorageAccounts',
         'blob storage': 'diagrams.azure.storage.BlobStorage',
-        
-        # Security
-        'key vault': 'diagrams.azure.security.KeyVaults',
+        'data lake storage': 'diagrams.azure.storage.DataLakeStorage',
+        'queues storage': 'diagrams.azure.storage.QueuesStorage',
+        'table storage': 'diagrams.azure.storage.TableStorage',
         
         # Network
-        'load balancer': 'diagrams.azure.network.LoadBalancers',
-        'virtual network': 'diagrams.azure.network.VirtualNetworks',
+        'virtual networks': 'diagrams.azure.network.VirtualNetworks',
+        'load balancer': 'diagrams.azure.network.LoadBalancer',
+        'application gateway': 'diagrams.azure.network.ApplicationGateway',
+        'vpn gateway': 'diagrams.azure.network.VPNGateway',
+        'express route': 'diagrams.azure.network.ExpressRoute',
+        
+        # Web & Mobile
+        'web apps': 'diagrams.azure.web.AppServices',
+        'api management': 'diagrams.azure.web.APIManagement',
+        'cdn': 'diagrams.azure.web.CDN',
+        
+        # Identity & Security  
+        'active directory': 'diagrams.azure.identity.ActiveDirectory',
+        'key vault': 'diagrams.azure.security.KeyVault',
+        
+        # Analytics & AI
+        'synapse analytics': 'diagrams.azure.analytics.SynapseAnalytics',
+        'data factory': 'diagrams.azure.analytics.DataFactory',
+        'cognitive services': 'diagrams.azure.ai.CognitiveServices',
+        'machine learning': 'diagrams.azure.ml.MachineLearningService',
     },
     
     'gcp': {

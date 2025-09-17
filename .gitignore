@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 *.env.*
 .env
+.env.*
 .venv/
 venv/
 env/
@@ -12,8 +13,8 @@ env/
 dist/
 build/
 *.log
-**/.env*
-**/.env.template
+# Include template but exclude all other .env files
+!.env.template
 # Docker
 *.tar
 *.img

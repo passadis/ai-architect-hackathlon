@@ -205,6 +205,10 @@ async def generate_diagram(request: Dict[str, Any]):
         if not architecture_description and not diagram_code:
             raise ValueError("Either architecture_description or diagram_code is required")
         
+        # Ensure we have a valid MCP service instance
+        if mcp_service is None:
+            raise RuntimeError("MCP service is not initialized")
+        
         # If we have an architecture description, first get diagram structure suggestion
         if architecture_description and not diagram_code:
             print(f"🧠 Getting diagram structure for: {architecture_description[:100]}...")

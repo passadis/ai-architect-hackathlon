@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from app.models.schema import ArchitectureRequest, ArchitectureResponse
 from app.services.ai_agent import generate_design_document
 from app.services.enhanced_diagram_generator import generate_and_validate_diagram
@@ -14,6 +14,8 @@ from app.services.storage import (
     load_architectures_sync
 )
 import asyncio
+from urllib.parse import urlparse
+import io
 import logging
 import os
 
@@ -49,7 +51,10 @@ async def generate_architecture(payload: ArchitectureRequest):
     try:
         user_input = payload.input.strip()
         if not user_input:
-            raise HTTPException(status_code=400, detail="Input cannot be empty")
+            raise HTTPException(
+                status_code=400,
+                detail="Input cannot be empty"
+            )
 
         logger.info(f"Generating architecture for: {user_input[:100]}...")
 
@@ -61,84 +66,153 @@ async def generate_architecture(payload: ArchitectureRequest):
             # Try design document first
             logger.info("Starting design document generation...")
             design_doc = await generate_design_document(user_input)
-            logger.info(f"Design document generated successfully ({len(design_doc)} chars)")
+            logger.info(
+                "Design document generated successfully "
+                f"({len(design_doc)} chars)"
+            )
         except Exception as design_error:
             logger.error(f"Design document generation failed: {design_error}")
-            design_doc = f"Design document generation failed: {str(design_error)}"
+            design_doc = (
+                f"Design document generation failed: {str(design_error)}"
+            )
         
         try:
             if USE_MCP and MCP_AVAILABLE:
                 # Try MCP diagram generation (enhanced version) with timeout
-                logger.info("🔌 Starting MCP diagram generation with validation...")
+                logger.info(
+                    "🔌 Starting MCP diagram generation with validation..."
+                )
                 diagram_result = await asyncio.wait_for(
-                    generate_and_validate_diagram(user_input, design_doc or ""),
+                    generate_and_validate_diagram(
+                        user_input,
+                        design_doc or ""
+                    ),
                     timeout=120  # 2 minutes timeout
                 )
                 
                 if diagram_result['success']:
                     diagram_url = diagram_result.get('diagram_path', '')
-                    validation_score = diagram_result['validation_results'].get('validation_score', 0)
+                    validation_score = diagram_result[
+                        'validation_results'
+                    ].get('validation_score', 0)
                     iterations = diagram_result.get('iterations', 1)
-                    logger.info(f"🔌 MCP diagram generated successfully in {iterations} iterations (Score: {validation_score})")
+                    logger.info(
+                        "🔌 MCP diagram generated successfully in "
+                        f"{iterations} iterations (Score: {validation_score})"
+                    )
                 else:
-                    raise Exception(diagram_result.get('error', 'MCP diagram generation failed'))
+                    raise Exception(
+                        diagram_result.get(
+                            'error', 'MCP diagram generation failed'
+                        )
+                    )
                     
             else:
-                # Standard Azure AI diagram generation with validation and timeout
-                logger.info("☁️ Starting enhanced diagram generation with validation...")
+                # Standard Azure AI diagram generation (with validation)
+                logger.info(
+                    "☁️ Starting enhanced diagram generation with validation..."
+                )
                 diagram_result = await asyncio.wait_for(
-                    generate_and_validate_diagram(user_input, design_doc or ""),
-                    timeout=120  # 2 minutes timeout
+                    generate_and_validate_diagram(
+                        user_input,
+                        design_doc or ""
+                    ),
+                    timeout=120
                 )
                 
                 if diagram_result['success']:
                     diagram_url = diagram_result.get('diagram_path', '')
-                    validation_score = diagram_result['validation_results'].get('validation_score', 0)
+                    validation_score = diagram_result[
+                        'validation_results'
+                    ].get('validation_score', 0)
                     iterations = diagram_result.get('iterations', 1)
-                    logger.info(f"☁️ Diagram generated and validated successfully in {iterations} iterations (Score: {validation_score})")
+                    logger.info(
+                        "☁️ Diagram validated successfully in "
+                        f"{iterations} iteration(s) (Score: "
+                        f"{validation_score})"
+                    )
                     
                     # Add validation info to response if available
-                    validation_warnings = diagram_result['validation_results'].get('warnings', [])
+                    validation_warnings = diagram_result[
+                        'validation_results'
+                    ].get('warnings', [])
                     if validation_warnings:
-                        logger.info(f"Validation warnings: {validation_warnings}")
+                        logger.info(
+                            f"Validation warnings: {validation_warnings}"
+                        )
                 else:
-                    logger.error(f"Enhanced diagram generation failed: {diagram_result.get('error', 'Unknown error')}")
+                    logger.error(
+                        "Enhanced diagram generation failed: "
+                        f"{diagram_result.get('error', 'Unknown error')}"
+                    )
                     diagram_url = ""
         except asyncio.TimeoutError:
-            logger.error("Diagram generation timed out after 2 minutes, using fallback")
+            logger.error(
+                "Diagram generation timed out after 2 minutes, using fallback"
+            )
             # Fallback to basic diagram generation without validation
             try:
                 logger.info("Using fast fallback diagram generation...")
                 if USE_MCP and MCP_AVAILABLE:
-                    mcp_result = await asyncio.wait_for(generate_diagram_mcp(user_input), timeout=30)
-                    diagram_url = mcp_result.get('diagram_path', '') if isinstance(mcp_result, dict) else str(mcp_result)
+                    mcp_result = await asyncio.wait_for(
+                        generate_diagram_mcp(user_input),
+                        timeout=30
+                    )
+                    diagram_url = (
+                        mcp_result.get('diagram_path', '')
+                        if isinstance(mcp_result, dict)
+                        else str(mcp_result)
+                    )
                     logger.info(f"🔌 Fast MCP diagram generated: {diagram_url}")
                 else:
-                    diagram_url = await asyncio.wait_for(generate_diagram(user_input), timeout=30)
-                    logger.info(f"☁️ Fast diagram generated successfully: {diagram_url}")
+                    diagram_url = await asyncio.wait_for(
+                        generate_diagram(user_input),
+                        timeout=30
+                    )
+                    logger.info(
+                        "☁️ Fast diagram generated successfully: "
+                        f"{diagram_url}"
+                    )
             except Exception as fast_fallback_error:
-                logger.error(f"Fast fallback also failed: {fast_fallback_error}")
+                logger.error(
+                    f"Fast fallback also failed: {fast_fallback_error}"
+                )
                 diagram_url = ""
         except Exception as diagram_error:
-            logger.error(f"{'MCP' if USE_MCP and MCP_AVAILABLE else 'Enhanced'} diagram generation failed: {diagram_error}")
+            phase = 'MCP' if USE_MCP and MCP_AVAILABLE else 'Enhanced'
+            logger.error(
+                f"{phase} diagram generation failed: {diagram_error}"
+            )
             # Fallback to basic diagram generation
             try:
                 logger.info("Falling back to basic diagram generation...")
                 if USE_MCP and MCP_AVAILABLE:
                     mcp_result = await generate_diagram_mcp(user_input)
-                    diagram_url = mcp_result.get('diagram_path', '') if isinstance(mcp_result, dict) else str(mcp_result)
-                    logger.info(f"🔌 MCP fallback diagram generated: {diagram_url}")
+                    diagram_url = (
+                        mcp_result.get('diagram_path', '')
+                        if isinstance(mcp_result, dict)
+                        else str(mcp_result)
+                    )
+                    logger.info(
+                        f"🔌 MCP fallback diagram generated: {diagram_url}"
+                    )
                 else:
                     diagram_url = await generate_diagram(user_input)
-                    logger.info(f"☁️ Basic diagram generated successfully: {diagram_url}")
+                    logger.info(
+                        f"☁️ Basic diagram generated successfully: {diagram_url}"
+                    )
             except Exception as fallback_error:
-                logger.error(f"Fallback diagram generation also failed: {fallback_error}")
+                logger.error(
+                    f"Fallback diagram generation also failed: {fallback_error}"
+                )
                 diagram_url = ""
 
         # Return results even if one or both failed
         # Add warning if diagram_url is empty
         if not diagram_url or diagram_url.strip() == "":
-            logger.warning("⚠️ Diagram URL is empty - diagram generation may have failed")
+            logger.warning(
+                "⚠️ Diagram URL empty - diagram generation may have failed"
+            )
             diagram_url = ""
         else:
             logger.info(f"✅ Final diagram URL: {diagram_url}")
@@ -154,6 +228,81 @@ async def generate_architecture(payload: ArchitectureRequest):
     except Exception as e:
         logger.error(f"Error in generate_architecture: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/proxy/diagram")
+async def proxy_diagram(
+    url: str = Query(
+        ..., description="Full Azure Blob URL to the diagram"
+    )
+):
+    """Proxy a private Azure Blob diagram using managed identity.
+
+    Safeguards:
+        * Only blob.core.windows.net hosts
+        * Container must match configured diagram container
+    """
+    try:
+        if not url:
+            raise HTTPException(
+                status_code=400, detail="url query parameter required"
+            )
+
+        parsed = urlparse(url)
+        if (
+            parsed.scheme != "https" or
+            not parsed.netloc.endswith(".blob.core.windows.net")
+        ):
+            raise HTTPException(
+                status_code=400, detail="Unsupported URL host"
+            )
+
+        path_parts = parsed.path.lstrip('/').split('/', 1)
+        if len(path_parts) != 2:
+            raise HTTPException(
+                status_code=400, detail="Malformed blob URL path"
+            )
+        container, blob_path = path_parts
+
+        expected_container = os.getenv(
+            "AZURE_STORAGE_CONTAINER_NAME", "diagrams"
+        )
+        if container != expected_container:
+            raise HTTPException(
+                status_code=403, detail="Container not allowed"
+            )
+
+        from app.services.azure_storage import storage_service
+        if not storage_service.blob_service_client:
+            raise HTTPException(
+                status_code=503, detail="Storage service not initialized"
+            )
+
+        blob_client = storage_service.blob_service_client.get_blob_client(
+            container=container, blob=blob_path
+        )
+        try:
+            stream = blob_client.download_blob()
+            data = stream.readall()
+        except Exception as be:
+            logger.error(f"Failed to download blob for proxy: {be}")
+            raise HTTPException(status_code=404, detail="Diagram not found")
+
+        from fastapi.responses import StreamingResponse
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=300",
+                "X-Proxy-Source": "azure-storage"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Proxy error: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to proxy diagram"
+        )
 
 @router.get("/saved-architectures")
 async def get_saved():

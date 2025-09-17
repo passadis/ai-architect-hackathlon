@@ -39,12 +39,14 @@ const DashboardPage = () => {
 
   const [designDocument, setDesignDocument] = useState('');
   const [diagramUrl, setDiagramUrl] = useState('');
+  const [resolvedDiagramUrl, setResolvedDiagramUrl] = useState('');
+  const [diagramTriedProxy, setDiagramTriedProxy] = useState(false);
 
   // Load saved architectures on component mount
   useEffect(() => {
     loadSavedArchitectures();
   }, []);
-
+  
   // Auto-dismiss toast after 5 seconds
   useEffect(() => {
     if (exportStatus) {
@@ -433,6 +435,49 @@ const DashboardPage = () => {
     return <div className="prose max-w-none">{elements}</div>;
   };
 
+  // Whenever a new raw diagramUrl is set, reset resolution state
+  useEffect(() => {
+    console.log('🔍 useEffect triggered - diagramUrl:', diagramUrl);
+    
+    if (!diagramUrl) {
+      console.log('❌ No diagram URL provided');
+      setResolvedDiagramUrl('');
+      setDiagramTriedProxy(false);
+      return;
+    }
+    
+    // Check if it's a full Azure Storage URL
+    if (diagramUrl.startsWith('https://') && diagramUrl.includes('.blob.core.windows.net')) {
+      // For Azure Storage URLs, use the proxy endpoint directly
+      const backendUrl = API_ENDPOINTS.GENERATE_ARCHITECTURE.replace(/\/api\/generate-architecture$/, '');
+      const encoded = encodeURIComponent(diagramUrl);
+      const proxyUrl = `${backendUrl}/api/proxy/diagram?url=${encoded}`;
+      
+      console.log('🔗 Azure Storage URL detected');
+      console.log('🌐 Backend URL:', backendUrl);
+      console.log('📦 Encoded URL:', encoded);
+      console.log('🔀 Proxy URL:', proxyUrl);
+      
+      setResolvedDiagramUrl(proxyUrl);
+    } else {
+      // For relative paths, construct URL with backend base URL
+      const backendUrl = API_ENDPOINTS.GENERATE_ARCHITECTURE.replace(/\/api\/generate-architecture$/, '');
+      const fullDiagramUrl = `${backendUrl}${diagramUrl}`;
+      console.log('📁 Relative path detected, using backend URL:', fullDiagramUrl);
+      setResolvedDiagramUrl(fullDiagramUrl);
+    }
+    
+    setDiagramTriedProxy(false);
+    console.log('✅ useEffect completed');
+  }, [diagramUrl]);
+
+  const buildProxyUrl = (original) => {
+    const encoded = encodeURIComponent(original);
+    // Ensure we're using the backend URL for the proxy endpoint
+    const backendUrl = API_ENDPOINTS.GENERATE_ARCHITECTURE.replace(/\/api\/generate-architecture$/, '');
+    return `${backendUrl}/api/proxy/diagram?url=${encoded}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       
@@ -756,14 +801,47 @@ const DashboardPage = () => {
                       </div>
                       <div className="border border-gray-200 rounded bg-white flex items-center justify-center p-4 min-h-[400px]">
                         {diagramUrl ? (
-                          <img 
-                            src={API_ENDPOINTS.DIAGRAM_URL(diagramUrl)} 
-                            alt="Architecture Diagram" 
+                          <img
+                            src={resolvedDiagramUrl}
+                            alt="Architecture Diagram"
                             className="max-h-96 w-auto object-contain"
+                            ref={(img) => {
+                              if (img) {
+                                console.log('🖼️ Rendering image with URL:', resolvedDiagramUrl);
+                              }
+                            }}
+                            onLoad={(e) => {
+                              console.log('✅ Image loaded successfully:', e.target.src);
+                            }}
                             onError={(e) => {
-                              console.error('Image failed to load:', e.target.src);
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
+                              console.error('❌ Image failed to load:', e.target.src);
+                              console.error('❌ Error details:', e);
+                              console.error('❌ Diagram tried proxy:', diagramTriedProxy);
+                              
+                              if (!diagramTriedProxy) {
+                                console.log('🔄 Trying fallback approach...');
+                                // Try alternative proxy approach if first attempt fails
+                                let fallbackUrl;
+                                if (diagramUrl.startsWith('https://')) {
+                                  // If it's already an Azure URL, try direct access
+                                  fallbackUrl = diagramUrl;
+                                  console.log('🔗 Trying direct Azure URL:', fallbackUrl);
+                                } else {
+                                  // Try proxy with the original URL
+                                  fallbackUrl = buildProxyUrl(diagramUrl);
+                                  console.log('🔀 Trying buildProxyUrl:', fallbackUrl);
+                                }
+                                
+                                setResolvedDiagramUrl(fallbackUrl);
+                                setDiagramTriedProxy(true);
+                              } else {
+                                console.log('💥 All attempts failed, showing error state');
+                                // Show error state after all attempts fail
+                                e.target.style.display = 'none';
+                                if (e.target.nextSibling) {
+                                  e.target.nextSibling.style.display = 'block';
+                                }
+                              }
                             }}
                           />
                         ) : null}
@@ -780,7 +858,10 @@ const DashboardPage = () => {
                             This diagram illustrates the architecture based on your requirements. 
                             Each component represents a service or system in your architecture.
                           </p>
-                          <p className="mt-1 text-xs">Image URL: {diagramUrl}</p>
+                          <p className="mt-1 text-xs break-all">Original URL: {diagramUrl}</p>
+                          {diagramTriedProxy && (
+                            <p className="mt-1 text-xs break-all text-blue-600">Using proxy: {resolvedDiagramUrl}</p>
+                          )}
                         </div>
                       )}
                     </div>

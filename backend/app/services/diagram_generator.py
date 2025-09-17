@@ -596,11 +596,44 @@ def validate_and_fix_imports(code: str) -> str:
     
     fixed_code = code
     
-    # First, handle specific module fixes (identity -> security)
+    # First, handle specific module fixes (identity -> security, APIManagement web -> integration)
     specific_fixes = {
         'from diagrams.azure.identity import KeyVault': 'from diagrams.azure.security import KeyVaults as KeyVault',
         'from diagrams.azure.identity import KeyVaults': 'from diagrams.azure.security import KeyVaults',
+        'from diagrams.azure.web import APIManagement': 'from diagrams.azure.integration import APIManagement',
     }
+    
+    # CRITICAL FIX: Handle APIManagement in mixed imports from web module
+    if 'from diagrams.azure.web import' in fixed_code and 'APIManagement' in fixed_code:
+        # Replace APIManagement from web imports and add correct import
+        fixed_code = re.sub(
+            r'from diagrams\.azure\.web import([^,\n]*),\s*APIManagement([^,\n]*)',
+            r'from diagrams.azure.web import\1\2',
+            fixed_code
+        )
+        fixed_code = re.sub(
+            r'from diagrams\.azure\.web import([^,\n]*)\s*APIManagement,([^,\n]*)',
+            r'from diagrams.azure.web import\1\2',
+            fixed_code
+        )
+        # Clean up any extra commas
+        fixed_code = re.sub(r'from diagrams\.azure\.web import\s*,', 'from diagrams.azure.web import', fixed_code)
+        fixed_code = re.sub(r'from diagrams\.azure\.web import([^,\n]*),\s*,', r'from diagrams.azure.web import\1', fixed_code)
+        
+        # Add the correct APIManagement import if it's used in the code
+        if 'APIManagement(' in fixed_code:
+            # Add import at the top if not already present
+            if 'from diagrams.azure.integration import APIManagement' not in fixed_code:
+                import_lines = []
+                other_lines = []
+                for line in fixed_code.split('\n'):
+                    if line.strip().startswith('from diagrams'):
+                        import_lines.append(line)
+                    else:
+                        other_lines.append(line)
+                import_lines.append('from diagrams.azure.integration import APIManagement')
+                fixed_code = '\n'.join(import_lines + other_lines)
+                logger.debug("Added correct APIManagement import from integration module")
     
     for incorrect, correct in specific_fixes.items():
         if incorrect in fixed_code:

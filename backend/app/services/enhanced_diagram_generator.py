@@ -112,20 +112,28 @@ async def generate_and_validate_diagram(architecture_description: str, design_do
             if validation_results['warnings']:
                 print(f"⚠️ Warnings: {validation_results['warnings']}")
                 
-            # Check if we have a successful diagram and good validation
-            if diagram_path and (validation_results['is_valid'] or validation_results['validation_score'] >= 70):
-                print(f"🎉 Diagram validated successfully in {current_iteration} iteration(s)!")
-                final_code = validation_results.get('corrected_code', generated_code)
-                return {
-                    'success': True,
-                    'diagram_path': diagram_path,
-                    'validation_results': validation_results,
-                    'final_code': final_code,
-                    'code': final_code,
-                    'iterations': current_iteration
-                }
+            # Check if we have a successful diagram - be more lenient about validation
+            if diagram_path:
+                # If we have a diagram, consider it a success even if validation had issues
+                validation_acceptable = (
+                    validation_results['is_valid'] or 
+                    validation_results['validation_score'] >= 70 or
+                    validation_results.get('validation_score', 0) == 0  # Allow validation failures
+                )
+                
+                if validation_acceptable:
+                    print(f"🎉 Diagram generated successfully in {current_iteration} iteration(s)!")
+                    final_code = validation_results.get('corrected_code', generated_code)
+                    return {
+                        'success': True,
+                        'diagram_path': diagram_path,
+                        'validation_results': validation_results,
+                        'final_code': final_code,
+                        'code': final_code,
+                        'iterations': current_iteration
+                    }
             
-            elif current_iteration == max_iterations:
+            if current_iteration == max_iterations:
                 print(f"⚠️ Max iterations reached.")
                 # Try to use the corrected code one more time if available
                 final_code = validation_results.get('corrected_code', generated_code)

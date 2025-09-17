@@ -3,7 +3,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~>3.0"
+      version = ">= 3.60.0"
     }
     azurecaf = {
       source  = "aztfmod/azurecaf"
@@ -46,12 +46,17 @@ variable "model_name" {
 
 # Configure the Azure Provider
 provider "azurerm" {
+  subscription_id = "29ea95b7-a4ce-45ba-89fe-abe1c08be1ee"
+  
   features {
     key_vault {
       purge_soft_delete_on_destroy    = true
       recover_soft_deleted_key_vaults = true
     }
   }
+  
+  # Use Azure AD authentication for storage accounts instead of key-based auth
+  storage_use_azuread = true
 }
 
 # Get current client configuration
@@ -59,7 +64,7 @@ data "azurerm_client_config" "current" {}
 
 # Generate a random suffix for unique resource names
 resource "random_string" "resource_token" {
-  length  = 13
+  length  = 8
   upper   = false
   special = false
 }
@@ -175,8 +180,6 @@ resource "azurerm_key_vault" "main" {
   soft_delete_retention_days  = 7
   purge_protection_enabled    = false
   sku_name                    = "standard"
-  enable_rbac_authorization   = true
-
 
   tags = {
     "azd-env-name" = var.environment_name
@@ -338,6 +341,9 @@ resource "azurerm_storage_account" "main" {
   account_kind                    = "StorageV2"
   public_network_access_enabled   = true
   allow_nested_items_to_be_public = true
+  
+  # Disable shared key access for enhanced security
+  shared_access_key_enabled       = false
 
   blob_properties {
     cors_rule {
@@ -357,7 +363,7 @@ resource "azurerm_storage_account" "main" {
 # Storage Container for diagrams
 resource "azurerm_storage_container" "diagrams" {
   name                  = "diagrams"
-  storage_account_name  = azurerm_storage_account.main.name
+  storage_account_id    = azurerm_storage_account.main.id
   container_access_type = "blob"
 }
 
@@ -366,6 +372,18 @@ resource "azurerm_role_assignment" "storage_blob_contributor" {
   scope                = azurerm_storage_account.main.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+# Grant Storage Queue Data Contributor to the Terraform runner principal so that
+# the provider can retrieve queue service properties using AAD when
+# shared_access_key_enabled = false. Without this, plan/apply may fail with
+# 403 KeyBasedAuthenticationNotPermitted when attempting to read queue properties.
+resource "azurerm_role_assignment" "storage_queue_contributor_runner" {
+  scope                = azurerm_storage_account.main.id
+  role_definition_name = "Storage Queue Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [azurerm_storage_account.main]
 }
 
 # CosmosDB Account
@@ -421,9 +439,18 @@ resource "azurerm_key_vault_secret" "cosmos_key" {
 
 }
 
-resource "azurerm_key_vault_secret" "storage_connection_string" {
-  name         = "storage-connection-string"
-  value        = azurerm_storage_account.main.primary_connection_string
+# Store storage account name and URL instead of connection string
+resource "azurerm_key_vault_secret" "storage_account_name" {
+  name         = "storage-account-name"
+  value        = azurerm_storage_account.main.name
+  key_vault_id = azurerm_key_vault.main.id
+
+  depends_on = [azurerm_role_assignment.key_vault_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "storage_account_url" {
+  name         = "storage-account-url"
+  value        = azurerm_storage_account.main.primary_blob_endpoint
   key_vault_id = azurerm_key_vault.main.id
 
   depends_on = [azurerm_role_assignment.key_vault_secrets_officer]
@@ -553,16 +580,16 @@ resource "azurerm_container_app" "backend" {
         value = azurerm_cosmosdb_sql_container.architectures.name
       }
       env {
-        name        = "AZURE_STORAGE_CONNECTION_STRING"
-        secret_name = "storage-connection-string"
+        name        = "AZURE_STORAGE_ACCOUNT_NAME"
+        secret_name = "storage-account-name"
       }
       env {
         name  = "AZURE_STORAGE_CONTAINER_NAME"
         value = azurerm_storage_container.diagrams.name
       }
       env {
-        name  = "AZURE_STORAGE_ACCOUNT_URL"
-        value = azurerm_storage_account.main.primary_blob_endpoint
+        name        = "AZURE_STORAGE_ACCOUNT_URL"
+        secret_name = "storage-account-url"
       }
       # Azure AI Foundry Configuration
       env {
@@ -628,8 +655,13 @@ resource "azurerm_container_app" "backend" {
   }
 
   secret {
-    name  = "storage-connection-string"
-    value = azurerm_storage_account.main.primary_connection_string
+    name  = "storage-account-name"
+    value = azurerm_storage_account.main.name
+  }
+
+  secret {
+    name  = "storage-account-url"
+    value = azurerm_storage_account.main.primary_blob_endpoint
   }
 
   ingress {

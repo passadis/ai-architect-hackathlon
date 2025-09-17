@@ -50,6 +50,49 @@ This solution provides an intelligent system for generating professional Azure a
 4. **Docker Desktop** installed and running ([Download](https://www.docker.com/products/docker-desktop))
 5. **Git** installed ([Download](https://git-scm.com/downloads))
 
+## 🛡️ Security Configuration
+
+**⚠️ CRITICAL: Secure Your API Keys**
+
+This application requires Azure API keys for OpenAI and Azure AI Search. **NEVER commit actual API keys to version control.**
+
+### Setup Secure Configuration
+
+1. **Copy the environment template**:
+   ```bash
+   cp .env.template .env
+   ```
+
+2. **Fill in your actual Azure resource credentials** in the `.env` file:
+   ```bash
+   # Replace placeholder values with your actual Azure credentials
+   AZURE_OPENAI_API_KEY=your_actual_openai_key_here
+   AZURE_SEARCH_API_KEY=your_actual_search_key_here
+   # ... other configuration values
+   ```
+
+3. **Ensure .env is in your .gitignore** (already included):
+   ```
+   .env*
+   !.env.template
+   ```
+
+### Security Best Practices
+
+- 🚫 **Never commit `.env` files** with real credentials to version control
+- 🔑 **Use Azure Key Vault** for production secrets
+- 🔒 **Use managed identities** when running in Azure
+- 🔄 **Rotate API keys regularly**
+- 📊 **Monitor API usage** for unusual activity
+- 🎯 **Apply least-privilege access** principles
+
+### Production Deployment
+
+For production deployments, use:
+- **Azure Key Vault** for secret management
+- **Managed Identity** for Azure service authentication
+- **CI/CD pipelines** with secure secret injection
+
 ### Supported Regions
 
 This template requires Azure AI Foundry, which is available in these regions:
