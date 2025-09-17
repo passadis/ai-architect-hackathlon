@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: ai-architect-mcp
+metadata:
+  template: ai-architect-mcp@1.0.0
+  description: AI-powered Azure Architecture Generator that automatically creates AI agents for design documents and diagram generation
+  author: Konstantinos Passadis
+  repositoryPath: .
+  quickstart: true
+
+infra:
+  provider: terraform
+
+services:
+  mcp-service:
+    project: ./mcp-service
+    host: containerapp
+    language: python
+    docker:
+      path: Dockerfile
+  backend:
+    project: ./backend
+    host: containerapp
+    language: python
+    docker:
+      path: Dockerfile
+  frontend:
+    project: ./frontend/architect-ai
+    host: containerapp
+    language: js
+    docker:
+      path: Dockerfile
+
+hooks:
+  preprovision:
+    posix:
+      shell: sh
+      run: echo "Preparing Azure AI Architect deployment..."
+    windows:
+      shell: pwsh
+      run: Write-Host "Preparing Azure AI Architect deployment..." -ForegroundColor Green
+
+  postprovision:
+    posix:
+      shell: sh
+      run: echo "🎉 Azure AI Architect deployed successfully! Access your application at the frontend URL above."
+    windows:
+      shell: pwsh
+      run: Write-Host "🎉 Azure AI Architect deployed successfully! Access your application at the frontend URL above." -ForegroundColor Green
