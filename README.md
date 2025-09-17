@@ -181,7 +181,7 @@ Build a data lake solution with Azure Functions for processing and Power BI for 
 - **🧠 Intelligent Architecture**: Combines Azure AI automation with a clean, maintainable codebase
 - **📘 Model Context Protocol (MCP)**: Acts as a single source of truth for validation and service integration
 - **🔗 Seamless Azure Integration**: Works effortlessly with Cosmos DB, Azure Storage, and other native services
-- **⚙️ Scalable & Secure Backend**: Designed for high performance and enterprise-grade security
+- **⚙️ Scalable & Secure Backend**: Designed for high performance and security
 - **🖥️ Intuitive Frontend**: Responsive UI for a smooth and user-friendly experience
 - **🧪 Clean Separation of Concerns**: Modular design for easier testing, maintenance, and innovation
 - **🚀 azd Template Support**: Fully compatible with Azure Developer CLI for streamlined deployment
