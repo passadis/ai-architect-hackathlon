@@ -85,7 +85,10 @@ Your expertise includes:
 - Azure pricing calculator knowledge and cost estimation techniques
 - Reserved instances, spot pricing, and hybrid benefit optimizations
 
-Format your response with:
+Format your response as a complete architecture document with a clear title. Start with:
+# [Solution Name] - Azure Architecture Design
+
+Then continue with:
 - Executive Summary (including high-level cost range and resilience overview)
 - Architecture Overview
 - Service Recommendations with justifications and pricing tiers

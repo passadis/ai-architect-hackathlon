@@ -18,40 +18,22 @@ class AzureCosmosService:
         self.key = os.getenv("AZURE_COSMOS_KEY")
         self.database_name = os.getenv("AZURE_COSMOS_DATABASE_NAME", "ai-architect-db")
         self.container_name = os.getenv("AZURE_COSMOS_CONTAINER_NAME", "architectures")
-        self.use_managed_identity = os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true"
+        # Disable managed identity to match reference implementation
+        self.use_managed_identity = False
         
         # Initialize container to None first
         self.container = None
         self.client = None
         
-        if self.use_managed_identity:
-            # Use managed identity for authentication (Azure Container Apps)
-            try:
-                from .azure_credentials import get_credential_for_scope
-                credential = get_credential_for_scope("https://cosmos.azure.com/.default")
-                self.client = CosmosClient(url=self.endpoint, credential=credential)
-                logger.info("Initialized CosmosDB with managed identity")
-            except Exception as e:
-                logger.warning(f"Failed to initialize CosmosDB with managed identity: {e}")
-                # Fallback to key-based authentication
-                if self.endpoint and self.key:
-                    logger.info("Falling back to key-based authentication for CosmosDB")
-                    try:
-                        self.client = CosmosClient(url=self.endpoint, credential=self.key)
-                    except Exception as key_error:
-                        logger.error(f"Failed to initialize CosmosDB with key: {key_error}")
-                else:
-                    logger.warning("No CosmosDB key available for fallback")
+        # Use key-based authentication only (like reference implementation)
+        if not self.endpoint or not self.key:
+            logger.warning("CosmosDB credentials not found, using local storage")
         else:
-            # Use key-based authentication
-            if not self.endpoint or not self.key:
-                logger.warning("CosmosDB credentials not found, using local storage")
-            else:
-                try:
-                    self.client = CosmosClient(url=self.endpoint, credential=self.key)
-                    logger.info("Initialized CosmosDB with key-based authentication")
-                except Exception as e:
-                    logger.warning(f"Failed to initialize CosmosDB with key: {e}")
+            try:
+                self.client = CosmosClient(url=self.endpoint, credential=self.key)
+                logger.info("Initialized CosmosDB with key-based authentication")
+            except Exception as e:
+                logger.warning(f"Failed to initialize CosmosDB with key: {e}")
         
         # Initialize database and container
         if self.client:

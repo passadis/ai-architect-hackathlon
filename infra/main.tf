@@ -46,8 +46,6 @@ variable "model_name" {
 
 # Configure the Azure Provider
 provider "azurerm" {
-  subscription_id = "29ea95b7-a4ce-45ba-89fe-abe1c08be1ee"
-  
   features {
     key_vault {
       purge_soft_delete_on_destroy    = true
@@ -64,7 +62,7 @@ data "azurerm_client_config" "current" {}
 
 # Generate a random suffix for unique resource names
 resource "random_string" "resource_token" {
-  length  = 8
+  length  = 13
   upper   = false
   special = false
 }
@@ -180,6 +178,7 @@ resource "azurerm_key_vault" "main" {
   soft_delete_retention_days  = 7
   purge_protection_enabled    = false
   sku_name                    = "standard"
+  rbac_authorization_enabled   = true
 
   tags = {
     "azd-env-name" = var.environment_name
@@ -342,8 +341,8 @@ resource "azurerm_storage_account" "main" {
   public_network_access_enabled   = true
   allow_nested_items_to_be_public = true
   
-  # Disable shared key access for enhanced security
-  shared_access_key_enabled       = false
+  # Enable shared key access for connection string auth
+  shared_access_key_enabled       = true
 
   blob_properties {
     cors_rule {
@@ -429,6 +428,15 @@ resource "azurerm_cosmosdb_sql_container" "architectures" {
   throughput            = 400
 }
 
+# Grant Cosmos DB Built-in Data Contributor role to managed identity
+resource "azurerm_cosmosdb_sql_role_assignment" "cosmos_contributor" {
+  resource_group_name = azurerm_resource_group.main.name
+  account_name        = azurerm_cosmosdb_account.main.name
+  role_definition_id  = "${azurerm_cosmosdb_account.main.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
+  principal_id        = azurerm_user_assigned_identity.main.principal_id
+  scope               = azurerm_cosmosdb_account.main.id
+}
+
 # Store secrets in Key Vault
 resource "azurerm_key_vault_secret" "cosmos_key" {
   name         = "cosmos-key"
@@ -439,7 +447,16 @@ resource "azurerm_key_vault_secret" "cosmos_key" {
 
 }
 
-# Store storage account name and URL instead of connection string
+# Store storage connection string in Key Vault  
+resource "azurerm_key_vault_secret" "storage_connection_string" {
+  name         = "storage-connection-string"
+  value        = azurerm_storage_account.main.primary_connection_string
+  key_vault_id = azurerm_key_vault.main.id
+
+  depends_on = [azurerm_role_assignment.key_vault_secrets_officer]
+}
+
+# Store storage account name and URL for compatibility
 resource "azurerm_key_vault_secret" "storage_account_name" {
   name         = "storage-account-name"
   value        = azurerm_storage_account.main.name
@@ -552,10 +569,6 @@ resource "azurerm_container_app" "backend" {
         value = "true"
       }
       env {
-        name  = "AZURE_USE_MANAGED_IDENTITY"
-        value = "true"
-      }
-      env {
         name  = "AZURE_AI_USE_MANAGED_IDENTITY"
         value = "true"
       }
@@ -580,8 +593,8 @@ resource "azurerm_container_app" "backend" {
         value = azurerm_cosmosdb_sql_container.architectures.name
       }
       env {
-        name        = "AZURE_STORAGE_ACCOUNT_NAME"
-        secret_name = "storage-account-name"
+        name        = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
       }
       env {
         name  = "AZURE_STORAGE_CONTAINER_NAME"
@@ -655,8 +668,8 @@ resource "azurerm_container_app" "backend" {
   }
 
   secret {
-    name  = "storage-account-name"
-    value = azurerm_storage_account.main.name
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.main.primary_connection_string
   }
 
   secret {

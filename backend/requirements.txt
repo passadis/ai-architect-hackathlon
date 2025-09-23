@@ -28,6 +28,7 @@ pillow
 # Web Framework & API
 fastapi
 uvicorn
+aiohttp
 python-multipart
 pydantic
 httpx

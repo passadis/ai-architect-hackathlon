@@ -16,10 +16,11 @@ class AzureStorageService:
     def __init__(self):
         self.connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
         self.container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "diagrams")
-        self.use_managed_identity = os.getenv("AZURE_USE_MANAGED_IDENTITY", "false").lower() == "true"
+        # Disable managed identity to match reference implementation
+        self.use_managed_identity = False
         self.blob_service_client = None
         
-        # Try to initialize with appropriate authentication
+        # Try to initialize with connection string authentication
         self._initialize_client()
         
         # Skip container check during initialization to avoid authentication issues locally
@@ -40,34 +41,17 @@ class AzureStorageService:
             self.blob_service_client = None
 
     def _initialize_client(self):
-        """Initialize blob service client with fallback authentication"""
-        if self.use_managed_identity:
-            # Try managed identity first (for Azure Container Apps)
-            try:
-                account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
-                if account_url:
-                    from .azure_credentials import get_credential_for_scope
-                    credential = get_credential_for_scope("https://storage.azure.com/.default")
-                    self.blob_service_client = BlobServiceClient(account_url=account_url, credential=credential)
-                    logger.info("Initialized Azure Storage with managed identity")
-                    return
-                else:
-                    logger.warning("AZURE_STORAGE_ACCOUNT_URL not found, falling back to connection string")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Azure Storage with managed identity: {e}")
-        
-        # Fallback to connection string
+        """Initialize blob service client with connection string authentication"""
+        # Use connection string authentication only (like reference implementation)
         if self.connection_string:
             try:
                 self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
-                # Test the connection
-                self.blob_service_client.get_account_information()
                 logger.info("Initialized Azure Storage with connection string")
             except Exception as e:
                 logger.error(f"Failed to initialize Azure Storage with connection string: {e}")
                 self.blob_service_client = None
         else:
-            logger.warning("Azure Storage connection string not found, using local storage")
+            logger.warning("No storage connection string available")
             self.blob_service_client = None
     
     def _ensure_container_exists(self):

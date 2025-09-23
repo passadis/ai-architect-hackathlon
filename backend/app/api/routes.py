@@ -634,11 +634,48 @@ def generate_preview_from_document(document: str) -> str:
 async def export_diagram(diagram_path: str, filename: str = None):
     """
     Export diagram with proper download headers
+    Handles both local files and Azure Blob URLs
     """
-    from fastapi.responses import FileResponse
+    from fastapi.responses import StreamingResponse
     import os
+    import aiohttp
     
     try:
+        # Generate filename if not provided
+        if not filename:
+            if diagram_path.startswith('https://'):
+                # Extract filename from Azure Blob URL
+                filename = diagram_path.split('/')[-1]
+                if not filename.endswith('.png'):
+                    filename = "architecture_diagram.png"
+            else:
+                filename = os.path.basename(diagram_path)
+                if not filename.endswith('.png'):
+                    filename = "architecture_diagram.png"
+        
+        # Handle Azure Blob URLs
+        if diagram_path.startswith('https://'):
+            logger.info(f"Proxying Azure Blob URL: {diagram_path}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(diagram_path) as response:
+                    if response.status != 200:
+                        raise HTTPException(status_code=404, detail="Diagram not found in Azure Storage")
+                    
+                    # Stream the content
+                    async def generate():
+                        async for chunk in response.content.iter_chunked(8192):
+                            yield chunk
+                    
+                    return StreamingResponse(
+                        generate(),
+                        media_type='image/png',
+                        headers={
+                            "Content-Disposition": f"attachment; filename={filename}",
+                            "Content-Type": "image/png"
+                        }
+                    )
+        
+        # Handle local files
         # Ensure the path is safe (remove leading slash if present)
         if diagram_path.startswith('/'):
             diagram_path = diagram_path[1:]
@@ -653,13 +690,8 @@ async def export_diagram(diagram_path: str, filename: str = None):
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="Diagram file not found")
         
-        # Generate filename if not provided
-        if not filename:
-            filename = os.path.basename(file_path)
-            if not filename.endswith('.png'):
-                filename = "architecture_diagram.png"
-        
         # Return file with download headers
+        from fastapi.responses import FileResponse
         return FileResponse(
             path=file_path,
             filename=filename,

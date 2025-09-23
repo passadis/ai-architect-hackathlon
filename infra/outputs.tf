@@ -47,6 +47,14 @@ output "AZURE_COSMOS_CONTAINER_NAME" {
   value = azurerm_cosmosdb_sql_container.architectures.name
 }
 
+output "USE_AZURE_SERVICES" {
+  value = "true"
+}
+
+output "AZURE_AI_USE_MANAGED_IDENTITY" {
+  value = "true"
+}
+
 output "AZURE_STORAGE_ACCOUNT_NAME" {
   value = azurerm_storage_account.main.name
 }

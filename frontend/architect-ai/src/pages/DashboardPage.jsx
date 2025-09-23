@@ -160,7 +160,7 @@ const DashboardPage = () => {
 
     setIsSaving(true);
     try {
-      const title = generateTitle(designDocument) || 'Generated Architecture';
+      const title = generateTitle(designDocument);
       const preview = generatePreview(designDocument) || 'Architecture design document';
 
       const response = await fetch(API_ENDPOINTS.SAVE_ARCHITECTURE, {
@@ -266,7 +266,7 @@ const DashboardPage = () => {
 
     try {
       // Generate title for filename
-      const title = generateTitle(designDocument) || 'Architecture_Design_Document';
+      const title = generateTitle(designDocument);
       const filename = `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`;
 
       // Create blob and download
@@ -307,44 +307,33 @@ const DashboardPage = () => {
     setIsExporting(true);
     try {
       // Generate filename
-      const title = generateTitle(designDocument) || 'Architecture_Diagram';
-      const filename = `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
+      const title = generateTitle(designDocument);
+      const filename = `${title.replace(/[^a-zA-Z0-9_-]/g, '_')}_diagram.png`;
 
-      // Check if diagramUrl is an Azure Blob URL (starts with https://)
-      if (diagramUrl.startsWith('https://')) {
-        // Direct download from Azure Blob Storage
-        const response = await fetch(diagramUrl);
-        if (!response.ok) {
-          throw new Error('Failed to fetch diagram from Azure Storage');
-        }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        
-        // Create download link
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        // Clean up
-        window.URL.revokeObjectURL(url);
-      } else {
-        // Fallback to the export endpoint for local files
-        const exportUrl = API_ENDPOINTS.EXPORT_DIAGRAM(diagramUrl, filename);
-        
-        // Create download link
-        const a = document.createElement('a');
-        a.href = exportUrl;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      // Always use the backend proxy endpoint to avoid CSP violations
+      // This works for both Azure Blob URLs and local files
+      const exportUrl = API_ENDPOINTS.EXPORT_DIAGRAM(diagramUrl, filename);
+      
+      // Fetch through backend proxy to avoid CSP restrictions
+      const response = await fetch(exportUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch diagram: ${response.status} ${response.statusText}`);
       }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Clean up
+      window.URL.revokeObjectURL(url);
       
       setExportStatus({ type: 'success', message: `Diagram exported as ${filename}` });
       
@@ -371,23 +360,70 @@ const DashboardPage = () => {
   };
 
   const generateTitle = (document) => {
-    if (!document) return '';
+    if (!document) return generateFallbackTitle();
     
     const lines = document.split('\n').filter(line => line.trim());
+    
+    // Look for main title (# or ##)
     for (const line of lines) {
       if (line.startsWith('# ')) {
-        return line.substring(2).trim();
+        const title = line.substring(2).trim();
+        return cleanTitle(title);
       } else if (line.startsWith('## ')) {
-        return line.substring(3).trim();
+        const title = line.substring(3).trim();
+        return cleanTitle(title);
       }
     }
     
+    // Try to extract from first substantial line (not "Executive Summary")
     const firstLine = lines[0]?.trim();
-    if (firstLine && firstLine.length > 10) {
-      return firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine;
+    if (firstLine && firstLine.length > 10 && !firstLine.toLowerCase().includes('executive summary')) {
+      return cleanTitle(firstLine);
     }
     
-    return 'Generated Architecture';
+    // Look for any line that might be a title (contains "Architecture" or "Design")
+    for (const line of lines.slice(0, 10)) { // Check first 10 lines
+      const cleanLine = line.replace(/^#+\s*/, '').trim();
+      if (cleanLine.length > 5 && 
+          (cleanLine.toLowerCase().includes('architecture') || 
+           cleanLine.toLowerCase().includes('design') ||
+           cleanLine.toLowerCase().includes('solution'))) {
+        return cleanTitle(cleanLine);
+      }
+    }
+    
+    return generateFallbackTitle();
+  };
+
+  const cleanTitle = (title) => {
+    // Remove special characters and normalize
+    let cleaned = title
+      .replace(/[^\w\s-]/g, '') // Remove special chars except word chars, spaces, hyphens
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+    
+    // Limit length to 50 characters
+    if (cleaned.length > 50) {
+      cleaned = cleaned.substring(0, 47) + '...';
+    }
+    
+    // Ensure it doesn't start with underscore or number
+    if (/^[_\d]/.test(cleaned)) {
+      cleaned = 'Architecture ' + cleaned;
+    }
+    
+    // Convert to title case for consistency
+    cleaned = cleaned.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    return cleaned || generateFallbackTitle();
+  };
+
+  const generateFallbackTitle = () => {
+    const timestamp = new Date().toISOString().slice(5, 16).replace(/[-T]/g, ''); // MMDDHHHMM format
+    const randomId = Math.random().toString(36).substring(2, 5); // 3 chars
+    return `Architecture ${timestamp} ${randomId}`;
   };
 
   const generatePreview = (document) => {
