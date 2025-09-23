@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diagram Test</title>
+</head>
+<body>
+    <h1>Testing Diagram Display</h1>
+    
+    <h2>Direct Azure Storage URL (Should Fail - Private)</h2>
+    <img src="https://staiarchitectweb.blob.core.windows.net/diagrams/71628cf7-d4e2-41d3-8da3-266702a5cbfe.png" 
+         alt="Direct Azure Storage" 
+         style="max-width: 500px; border: 1px solid red;"
+         onload="console.log('Direct URL loaded successfully')"
+         onerror="console.error('Direct URL failed to load')">
+    
+    <h2>Proxy URL (Should Work)</h2>
+    <img src="https://backend.wonderfultree-bbb5e3f6.eastus2.azurecontainerapps.io/api/proxy/diagram?url=https%3A//staiarchitectweb.blob.core.windows.net/diagrams/71628cf7-d4e2-41d3-8da3-266702a5cbfe.png" 
+         alt="Proxy URL" 
+         style="max-width: 500px; border: 1px solid green;"
+         onload="console.log('Proxy URL loaded successfully')"
+         onerror="console.error('Proxy URL failed to load')">
+         
+    <script>
+        console.log('Diagram test page loaded');
+        console.log('Check browser network tab for any CORS or loading errors');
+    </script>
+</body>
+</html>
